@@ -98,9 +98,22 @@ This fork adds a web target that runs PathPlanner inside CodeRunner
   no-op telemetry/update-checker). Upstream files carry only guard-style
   edits behind `CodeRunnerWebMode.enabled` and `PlatformShim` — keep it
   that way to make upstream merges cheap.
-- Build: `flutter build web -t lib/coderunner/main_coderunner.dart
-  --base-href /pathplanner/ --no-web-resources-cdn`. CodeRunner serves
-  `build/web/` at `/pathplanner/` and iframes it with `?ws=<slug>`.
+- Build: `scripts/build_web.sh`, which wraps `flutter build web -t
+  lib/coderunner/main_coderunner.dart --base-href /pathplanner/
+  --no-web-resources-cdn` and adds `--build-name` from the nearest
+  upstream `v*` tag. Without that flag the app reports pubspec's
+  placeholder `0.0.0` in the sidebar (`package_info_plus` reads
+  `build/web/version.json`, which upstream CI stamps with cider).
+  CodeRunner serves `build/web/` at `/pathplanner/` and iframes it with
+  `?ws=<slug>`.
+- Release: pushing a `web-v*` tag runs
+  `.github/workflows/coderunner-web-release.yaml` (verify: format,
+  analyze, tests; then build), which attaches `pathplanner-dist.tar.gz`
+  to the matching GitHub release. CodeRunner pulls that asset from this
+  repo's latest release in `containers/control/Dockerfile` and
+  `scripts/fetch-dist.ts`, extracting it to `dist/pathplanner`. The
+  `web-` prefix keeps upstream `v20XX.Y.Z` tag syncs from cutting a web
+  release; `workflow_dispatch` builds without publishing.
 - v1 web scope: path/auto editing + save, navgrid editing, Choreo
   read-only. Telemetry, hot reload, path optimizer, custom field images,
   and GIF export are gated off on web (still work on desktop).

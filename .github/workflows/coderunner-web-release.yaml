@@ -1,0 +1,126 @@
+name: CodeRunner Web Release
+
+# Builds the CodeRunner web bundle and publishes it as pathplanner-dist.tar.gz
+# on a GitHub release. CodeRunner pulls that asset from this repo's latest
+# release (containers/control/Dockerfile and scripts/fetch-dist.ts on that
+# side), extracts it to dist/pathplanner, and serves it at /pathplanner/.
+#
+# Triggered by pushing a web-v* tag. The prefix is deliberate: syncing
+# upstream's v20XX.Y.Z tags into this fork must not cut a web release.
+# workflow_dispatch builds and uploads a workflow artifact without touching
+# releases, for testing the pipeline.
+
+on:
+  push:
+    tags: ["web-v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: coderunner-web-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.35.7
+
+jobs:
+  verify:
+    name: "[Web] Verify"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Setup flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          cache-path: ${{ runner.tool_cache }}/flutter/linux
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format -o none --set-exit-if-changed lib/* test/*
+
+      - name: Generate mocks
+        run: dart run build_runner build
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+  release:
+    name: "[Web] Build & Release"
+    needs: verify
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          # Full history so git describe can find the upstream release tag.
+          fetch-depth: 0
+
+      - name: Setup flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          cache-path: ${{ runner.tool_cache }}/flutter/linux
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Resolve version from nearest upstream tag
+        run: |
+          set -euo pipefail
+          VERSION="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo v0.0.0)"
+          echo "VERSION_NAME=${VERSION#v}" >> "$GITHUB_ENV"
+
+      - name: Build web bundle
+        run: |
+          flutter build web -t lib/coderunner/main_coderunner.dart \
+            --base-href /pathplanner/ \
+            --no-web-resources-cdn \
+            --build-name="$VERSION_NAME" \
+            --build-number="${{ github.run_number }}"
+
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          test -f build/web/index.html
+          BUILT="$(jq -r .version build/web/version.json)"
+          if [ "$BUILT" != "$VERSION_NAME" ]; then
+            echo "version.json says '$BUILT', expected '$VERSION_NAME'."
+            exit 1
+          fi
+          echo "Built PathPlanner web v$VERSION_NAME"
+
+      - name: Package dist
+        run: tar -czf pathplanner-dist.tar.gz -C build/web .
+
+      - name: Upload dist artifact
+        if: ${{ github.ref_type != 'tag' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pathplanner-dist
+          path: pathplanner-dist.tar.gz
+          if-no-files-found: error
+
+      - name: Publish release asset
+        if: ${{ github.ref_type == 'tag' }}
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes "PathPlanner web build for CodeRunner (PathPlanner v$VERSION_NAME)."
+          fi
+          gh release upload "$TAG" pathplanner-dist.tar.gz --clobber
