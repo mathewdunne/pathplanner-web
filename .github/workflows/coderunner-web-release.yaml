@@ -78,7 +78,13 @@ jobs:
       - name: Resolve version from nearest upstream tag
         run: |
           set -euo pipefail
-          VERSION="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo v0.0.0)"
+          # Needs upstream's v* tags on this remote; a fork that never pushed
+          # them would silently stamp 0.0.0, which is the bug this replaces.
+          if ! VERSION="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null)"; then
+            echo "No upstream v* tag reachable from HEAD. Push upstream's tags:"
+            echo "  git fetch upstream --tags && git push origin --tags"
+            exit 1
+          fi
           echo "VERSION_NAME=${VERSION#v}" >> "$GITHUB_ENV"
 
       - name: Build web bundle
