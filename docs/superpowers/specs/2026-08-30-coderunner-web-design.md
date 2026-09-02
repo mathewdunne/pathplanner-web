@@ -26,7 +26,11 @@ In scope:
 
 Out of scope for v1 (gated off on web, cleanly, behind guards):
 - Telemetry page, NT4 connection, hot reload (noop telemetry injected).
-- Navgrid editor page and the path optimizer (no isolates needed).
+- The path optimizer (no isolates needed).
+- ~~Navgrid editor page~~ — amended 2026-09-02: shipped on web after all.
+  The page only needs the injected fs and the asset bundle, and
+  `navgrid.json` already round-trips through the sync layer; the
+  isolate argument applied only to the optimizer.
 - Custom field image import, GIF export / trajectory render dialog.
 - Update checker (noop injected), window management, file/dir pickers,
   desktop log files, directory watchers (refresh-on-reload instead).

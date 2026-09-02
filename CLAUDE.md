@@ -101,8 +101,11 @@ This fork adds a web target that runs PathPlanner inside CodeRunner
 - Build: `flutter build web -t lib/coderunner/main_coderunner.dart
   --base-href /pathplanner/ --no-web-resources-cdn`. CodeRunner serves
   `build/web/` at `/pathplanner/` and iframes it with `?ws=<slug>`.
-- v1 web scope: path/auto editing + save, Choreo read-only. Telemetry,
-  hot reload, navgrid editor, path optimizer, custom field images, and
-  GIF export are gated off on web (still work on desktop).
+- v1 web scope: path/auto editing + save, navgrid editing, Choreo
+  read-only. Telemetry, hot reload, path optimizer, custom field images,
+  and GIF export are gated off on web (still work on desktop).
+- Web has no app bar; the drawer opens from a floating button in
+  `home_page.dart`. Nav destinations and the `PageView` children there
+  are index-coupled — gate both lists the same way or they desync.
 - Tests for the layer are in `test/coderunner/`; the upstream suite must
   keep passing with `CodeRunnerWebMode.enabled == false`.

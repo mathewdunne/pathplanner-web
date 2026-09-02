@@ -60,7 +60,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   FieldImage? _fieldImage;
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
-  final GlobalKey _key = GlobalKey();
+  final GlobalKey<ScaffoldState> _key = GlobalKey();
   static const _settingsDir = 'settings.json';
   int _selectedPage = 0;
   final PageController _pageController = PageController();
@@ -221,13 +221,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _key,
-      appBar: CustomAppBar(
-        titleWidget: Text(
-          _projectDir == null ? 'PathPlanner' : basename(_projectDir!.path),
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-        ),
-      ),
+      // The web build has no window buttons or title bar to show, so it
+      // drops the app bar and opens the drawer from a floating button.
+      appBar: CodeRunnerWebMode.enabled
+          ? null
+          : CustomAppBar(
+              titleWidget: Text(
+                _projectDir == null
+                    ? 'PathPlanner'
+                    : basename(_projectDir!.path),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+              ),
+            ),
       drawer: _projectDir == null ? null : _buildDrawer(context),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      floatingActionButton: (CodeRunnerWebMode.enabled && _projectDir != null)
+          ? FloatingActionButton.small(
+              tooltip: 'Menu',
+              onPressed: () => _key.currentState?.openDrawer(),
+              child: const Icon(Icons.menu),
+            )
+          : null,
       body: ScaleTransition(
         scale: _scaleAnimation,
         child: _buildBody(context),
@@ -301,12 +316,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
           label: const Text('Telemetry'),
         ),
-        const SizedBox(height: 5),
-        const NavigationDrawerDestination(
-          icon: Icon(Icons.grid_on_rounded),
-          label: Text('Navigation Grid'),
-        ),
       ],
+      const SizedBox(height: 5),
+      const NavigationDrawerDestination(
+        icon: Icon(Icons.grid_on_rounded),
+        label: Text('Navigation Grid'),
+      ),
     ];
   }
 
@@ -449,12 +464,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     telemetry: widget.telemetry,
                     prefs: widget.prefs,
                   ),
-                if (!CodeRunnerWebMode.enabled)
-                  NavGridPage(
-                    deployDirectory: _pathplannerDir,
-                    fs: fs,
-                    fieldImage: _fieldImage ?? FieldImage.defaultField,
-                  ),
+                // Kept in lockstep with _buildNavigationDestinations: both
+                // lists drop telemetry on web, so the indices still line up.
+                NavGridPage(
+                  deployDirectory: _pathplannerDir,
+                  fs: fs,
+                  fieldImage: _fieldImage ?? FieldImage.defaultField,
+                ),
               ],
             ),
           ),
